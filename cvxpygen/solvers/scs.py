@@ -7,6 +7,7 @@ import os
 import shutil
 
 import numpy as np
+import scipy.sparse as spa
 
 from cvxpygen.solvers import SolverInterface
 from cvxpygen import utils
@@ -137,6 +138,13 @@ class SCSInterface(SolverInterface):
 
     def generate_code(self, configuration, code_dir, solver_code_dir, cvxpygen_directory,
                       canon, gradient, prefix) -> None:
+
+        # check if P is upper triangular
+        parameter_canon = canon.parameter_canon
+        if 'P' in parameter_canon.p and parameter_canon.p['P'] is not None:
+            P_mat = parameter_canon.p['P']
+            if spa.tril(P_mat, -1).data.size > 0:
+                parameter_canon.p['P'] = spa.triu(P_mat, format='csc')
 
         # copy sources
         if os.path.isdir(solver_code_dir):

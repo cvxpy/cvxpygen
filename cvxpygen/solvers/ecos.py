@@ -19,7 +19,6 @@ class ECOSInterface(SolverInterface):
     cvxpy_solver_name = 'ECOS'
     solver_type = 'conic'
     canon_p_ids = ['c', 'd', 'A', 'b', 'G', 'h']
-    canon_p_ids_constr_vec = ['b', 'h']
     solve_function_call = '{prefix}ecos_flag = ECOS_solve({prefix}ecos_workspace)'
 
     # header files

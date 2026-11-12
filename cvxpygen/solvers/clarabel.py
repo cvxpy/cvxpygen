@@ -19,9 +19,7 @@ class ClarabelInterface(SolverInterface):
     solver_name = 'Clarabel'
     cvxpy_solver_name = 'CLARABEL'
     solver_type = 'conic'
-    supports_quad_obj = True
     canon_p_ids = ['P', 'q', 'd', 'A', 'b']
-    canon_p_ids_constr_vec = ['b']
     gradient_supported = False
 
     # header and source files

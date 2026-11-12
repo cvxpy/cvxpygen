@@ -98,11 +98,13 @@ class Canonicalizer:
         parameter_info = self._get_parameter_info(canon_maps)
 
         parameter_canon = ParameterCanon()
-        parameter_canon.quad_obj = self._get_quad_obj(problem, solver_interface, solver_opts)
+        # CVXPY compiled the objective's quadratic part into P only if the solver uses it.
+        P = canon_maps.structures.get('P')
+        parameter_canon.quad_obj = solver_interface.solver_type == 'quadratic' or (
+            P is not None and P.indices.size > 0)
         canon_p_ids = [p_id for p_id in solver_interface.canon_p_ids
                        if p_id != 'P' or parameter_canon.quad_obj]
-        adjacency = np.zeros((len(canon_p_ids), parameter_info.num), dtype=bool)
-        for i, p_id in enumerate(canon_p_ids):
+        for p_id in canon_p_ids:
             M, v = canon_maps.maps[p_id]
             # [M | v] maps the parameter vector with its trailing constant 1.
             mapping = sparse.hstack([M, sparse.csr_matrix(v[:, None])], format='csr')
@@ -116,14 +118,16 @@ class Canonicalizer:
                 parameter_canon.p[p_id] = solver_interface.augment_vector_parameter(p_id, values)
             if p_id == 'd':
                 parameter_canon.nonzero_d = mapping.nnz > 0
-            adjacency = self._update_adjacency_matrix(adjacency, i, parameter_info, mapping)
             parameter_canon.p_id_to_mapping[p_id] = mapping
             parameter_canon.p_id_to_changes[p_id] = mapping[:, :-1].nnz > 0
             parameter_canon.p_id_to_size[p_id] = mapping.shape[0]
         parameter_canon.is_maximization = isinstance(problem.objective, Maximize)
+        # The canonical parameters to update when a user parameter changes.
+        col, size = canon_maps.param_id_to_col, canon_maps.param_id_to_size
         parameter_canon.user_p_name_to_canon_outdated = {
-            user_p_name: [canon_p_ids[j] for j in np.nonzero(adjacency[:, i])[0]]
-            for i, user_p_name in enumerate(parameter_info.names)
+            p.name(): [p_id for p_id in canon_p_ids if parameter_canon.p_id_to_mapping[p_id]
+                       [:, col[p.id]:col[p.id] + size[p.id]].nnz > 0]
+            for p in canon_maps.parameters
         }
 
         prim_variable_info = self._primal_info_from_maps(problem, canon_maps)
@@ -299,7 +303,6 @@ class Canonicalizer:
         pc.nonzero_d = pc_first.nonzero_d
         pc.quad_obj = pc_second.quad_obj
         pc.p = pc_second.p
-        pc.p_csc = pc_second.p_csc
         pc.p_id_to_size = pc_second.p_id_to_size
         pc.p_id_to_changes = pc_second.p_id_to_changes
 
@@ -339,24 +342,3 @@ class Canonicalizer:
         rows = np.arange(n)
         cols = np.full(n, m - 1)
         return sparse.csc_matrix((data, (rows, cols)), shape=(n, m))
-
-    @staticmethod
-    def _get_quad_obj(problem, solver_interface, solver_opts) -> bool:
-        if solver_interface.solver_type == 'quadratic':
-            return True
-        use_quad_obj = solver_opts.get('use_quad_obj', True) if solver_opts else True
-        return (
-            use_quad_obj
-            and solver_interface.supports_quad_obj
-            and problem.objective.expr.has_quadratic_term()
-        )
-
-    @staticmethod
-    def _update_adjacency_matrix(adjacency, i, parameter_info, mapping) -> np.ndarray:
-        for j in range(parameter_info.num):
-            column_slice = slice(
-                parameter_info.id_to_col[parameter_info.ids[j]],
-                parameter_info.id_to_col[parameter_info.ids[j + 1]],
-            )
-            adjacency[i, j] = mapping[:, column_slice].nnz > 0
-        return adjacency

@@ -18,9 +18,7 @@ class SCSInterface(SolverInterface):
     solver_name = 'SCS'
     cvxpy_solver_name = 'SCS'
     solver_type = 'conic'
-    supports_quad_obj = True
     canon_p_ids = ['P', 'c', 'd', 'A', 'b']
-    canon_p_ids_constr_vec = ['b']
     parameter_update_structure = {
         'init': ParameterUpdateLogic(
             update_pending_logic = UpdatePendingLogic([], extra_condition = '!{prefix}Scs_Work', functions_if_false = ['PA']),

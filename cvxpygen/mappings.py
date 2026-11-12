@@ -24,7 +24,6 @@ class Configuration:
 class ParameterCanon:
     """Represents first affine form"""
     p: dict = field(default_factory=dict)
-    p_csc: Dict[str, sp.csc_matrix] = field(default_factory=dict)
     p_id_to_mapping: Dict[str, sp.csr_matrix] = field(default_factory=dict)  # Represents A slice to canonical parameter
     p_id_to_changes: Dict[str, bool] = field(default_factory=dict)
     p_id_to_size: Dict[str, int] = field(default_factory=dict)

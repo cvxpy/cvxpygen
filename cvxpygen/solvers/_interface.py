@@ -25,7 +25,6 @@ class QPCanonMixin:
 
     solver_type = 'quadratic'
     canon_p_ids = ['P', 'q', 'd', 'A', 'l', 'u']
-    canon_p_ids_constr_vec = ['l', 'u']
     dual_var_split = False
     dual_var_names = ['y']
 
@@ -48,7 +47,6 @@ class QPCanonMixin:
 
 class SolverInterface(ABC):
 
-    supports_quad_obj: bool = False
     cvxpy_solver_name: str = None  # CVXPY solver whose canonical maps the interface uses
 
     def __init__(self, solver_name, n_var, n_eq, n_ineq, canon_constants, enable_settings):
@@ -66,11 +64,6 @@ class SolverInterface(ABC):
     @property
     @abstractmethod
     def canon_p_ids(self):
-        pass
-
-    @property
-    @abstractmethod
-    def canon_p_ids_constr_vec(self):
         pass
 
     @property

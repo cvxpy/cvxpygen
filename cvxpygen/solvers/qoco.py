@@ -18,9 +18,7 @@ class QOCOGENInterface(SolverInterface):
     solver_name = 'QOCOGEN'
     cvxpy_solver_name = 'QOCO'
     solver_type = 'conic'
-    supports_quad_obj = True
     canon_p_ids = ['P', 'c', 'd', 'A', 'b', 'G', 'h']
-    canon_p_ids_constr_vec = ['b', 'h']
     solve_function_call = 'qoco_custom_solve(&{prefix}qoco_custom_workspace)'
 
     # header files
@@ -187,9 +185,7 @@ class QOCOInterface(SolverInterface):
     solver_name = 'QOCO'
     cvxpy_solver_name = 'QOCO'
     solver_type = 'conic'
-    supports_quad_obj = True
     canon_p_ids = ['P', 'c', 'd', 'A', 'b', 'G', 'h']
-    canon_p_ids_constr_vec = ['b', 'h']
     solve_function_call = 'qoco_solve({prefix}qoco_solver)'
 
     # header files

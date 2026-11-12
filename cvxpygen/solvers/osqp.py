@@ -16,7 +16,6 @@ from cvxpygen.mappings import WorkspacePointerInfo, UpdatePendingLogic, Paramete
 class OSQPInterface(QPCanonMixin, SolverInterface):
     solver_name = 'OSQP'
     cvxpy_solver_name = 'OSQP'
-    supports_quad_obj = True
     parameter_update_structure = {
         'PA': ParameterUpdateLogic(
             update_pending_logic = UpdatePendingLogic(['P', 'A'], '&&', ['P', 'A']),

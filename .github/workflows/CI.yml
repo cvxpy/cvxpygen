@@ -41,7 +41,8 @@ jobs:
     - name: Install cvxpylayers from source
       if: runner.os == 'Linux'
       run: |
-        git clone https://github.com/cvxpy/cvxpylayers.git
+        # TEMPORARY: cvxpylayers from the canon-param-api branch until its PR is merged; then revert.
+        git clone --branch canon-param-api https://github.com/cvxpy/cvxpylayers.git
         cd cvxpylayers
         pip install ".[torch, jax]"
 

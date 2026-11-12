@@ -33,7 +33,8 @@ jobs:
 
     - name: Install cvxpy from source
       run: |
-        git clone https://github.com/cvxpy/cvxpy.git
+        # TEMPORARY: cvxpy from the canon-param-api branch until cvxpy/cvxpy#3604 is merged; then revert.
+        git clone --branch canon-param-api https://github.com/cvxpy/cvxpy.git
         cd cvxpy
         pip install .
 

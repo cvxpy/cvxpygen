@@ -182,6 +182,12 @@ def write_dense_mat_prot(f, mat, name):
     f.write(f'extern cpg_float cpg_{name}[{mat.size}];\n')
 
 
+def symmetric_from_upper(P_upper):
+    """Full symmetric matrix from its upper triangle (the canonical form of P)."""
+    P_upper = sp.csc_matrix(P_upper)
+    return sp.csc_matrix(P_upper + sp.triu(P_upper, k=1).T)
+
+
 def write_description(f, file_type, content):
     """
     Timestamp and file content to beginning of file
@@ -1586,10 +1592,12 @@ def solver_py_context(config, variable_info, dual_variable_info, parameter_info,
 
     dual_save_list = []
     if config.explicit != 1:
-        for name, shape in dual_variable_info.name_to_shape.items():
+        for name, parts in dual_variable_info.name_to_parts.items():
             constraint_idx = int(name[1:])  # d0 -> 0, d4 -> 4, etc.
-            reshape_str = f".reshape({shape}, order='F')" if shape else ''
-            dual_save_list.append((constraint_idx, name, shape, reshape_str))
+            size = dual_variable_info.name_to_size[name]
+            for j, local, shape in parts:
+                index = '' if np.array_equal(local, np.arange(size)) else f'[{local.tolist()}]'
+                dual_save_list.append((constraint_idx, j, name, index, shape))
 
     ctx = {
         'date': datetime.now().strftime("on %B %d, %Y at %H:%M:%S"),

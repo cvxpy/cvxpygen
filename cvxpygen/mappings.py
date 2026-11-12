@@ -21,16 +21,6 @@ class Configuration:
 
 
 @dataclass
-class AffineMap:
-    mapping_rows: list = field(default_factory=list)
-    mapping: list = field(default_factory=list)
-    sign: int = 1
-    indices: list = field(default_factory=list)
-    indptr: list = field(default_factory=list)
-    shape = ()
-
-
-@dataclass
 class ParameterCanon:
     """Represents first affine form"""
     p: dict = field(default_factory=dict)
@@ -87,16 +77,14 @@ class PrimalVariableInfo(VariableInfo):
 
 @dataclass
 class DualVariableInfo(VariableInfo):
-    """Info for dual variable retrival from a canonical solution"""
+    """Info for dual variable retrival from a canonical solution
+
+    Each block d<i> holds the duals of constraint i; name_to_parts lists, per
+    dual variable of the constraint, (position in constraint.dual_variables,
+    indices into the block, shape).
+    """
     name_to_vec: Dict[str, str]
-
-
-@dataclass
-class ConstraintInfo:
-    n_data_constr: int
-    n_data_constr_mat: int
-    mapping_rows_eq: np.ndarray
-    mapping_rows_ineq: np.ndarray
+    name_to_parts: Dict[str, list] = field(default_factory=dict)
 
 
 @dataclass

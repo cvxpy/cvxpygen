@@ -7,6 +7,7 @@ import numpy as np
 import scipy.sparse as sp
 from cvxpygen.mappings import Canon
 from cvxpygen.solvers._interface import SolverInterface
+from cvxpygen.utils import symmetric_from_upper
 
 
 class PreSolver:
@@ -29,7 +30,7 @@ class PreSolver:
             raise ValueError(f'Explicit solver generation: Matrices must be constant!')
         
         # identify to-eliminate vars
-        P = pc.p['P'].toarray()
+        P = symmetric_from_upper(pc.p['P']).toarray()
         q = pc.p['q']
         A = pc.p['A'].toarray()
         u = pc.p['u']
@@ -69,7 +70,7 @@ class PreSolver:
                     u[k] -= ratio * u[constr_ind]
         
         # update canonical parameters and mappings
-        pc.p['P'] = sp.csc_matrix(P[np.ix_(col_mask, col_mask)])
+        pc.p['P'] = sp.csc_matrix(np.triu(P[np.ix_(col_mask, col_mask)]))
         pc.p['q'] = q[col_mask]
         pc.p['A'] = sp.csc_matrix(A[np.ix_(row_mask, col_mask)])
         pc.p['u'] = u[row_mask]

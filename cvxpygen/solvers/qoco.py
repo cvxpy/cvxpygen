@@ -80,15 +80,17 @@ class QOCOGENInterface(SolverInterface):
     # docu
     docu = 'https://qoco-org.github.io/qoco/'
 
-    def __init__(self, data, p_prob, enable_settings):
-        n_var = p_prob.x.size
-        n_eq = p_prob.cone_dims.zero
-        n_ineq = data['G'].shape[0]
-        q = np.array(p_prob.cone_dims.soc)
+    def __init__(self, canon_maps, enable_settings):
+        cone_dims = canon_maps.cone_dims
+        n_var = canon_maps.maps['c'][1].size
+        n_eq = cone_dims.zero
+        n_ineq = canon_maps.structures['G'].shape[0]
+        q = np.array(cone_dims.soc)
+        has_P = 'P' in canon_maps.structures
 
         canon_constants = {'n': n_var, 'm': n_ineq, 'p': n_eq,
-                           'l': p_prob.cone_dims.nonneg,
-                           'nsoc': len(p_prob.cone_dims.soc),
+                           'l': cone_dims.nonneg,
+                           'nsoc': len(cone_dims.soc),
                            'q': q}
 
         self.parameter_update_structure = {
@@ -117,14 +119,13 @@ class QOCOGENInterface(SolverInterface):
                 function_call = 'update_h(&{prefix}qoco_custom_workspace, {prefix}Canon_Params.h)'
             ),
         }
-        indices_obj, _, _ = self.get_problem_data_index(p_prob.reduced_P)
-        if indices_obj is not None:
+        if has_P:
             self.parameter_update_structure['P'] = ParameterUpdateLogic(
                 update_pending_logic = UpdatePendingLogic(['P']),
                 function_call = 'update_P(&{prefix}qoco_custom_workspace, {prefix}Canon_Params.P->x)'
             )
 
-        super().__init__(self.solver_name, n_var, n_eq, n_ineq, p_prob, canon_constants, enable_settings)
+        super().__init__(self.solver_name, n_var, n_eq, n_ineq, canon_constants, enable_settings)
 
     @staticmethod
     def check_unsupported_cones(cone_dims: "ConeDims") -> None:
@@ -248,15 +249,17 @@ class QOCOInterface(SolverInterface):
     # docu
     docu = 'https://qoco-org.github.io/qoco/'
 
-    def __init__(self, data, p_prob, enable_settings):
-        n_var = p_prob.x.size
-        n_eq = p_prob.cone_dims.zero
-        n_ineq = data['G'].shape[0]
-        q = np.array(p_prob.cone_dims.soc)
+    def __init__(self, canon_maps, enable_settings):
+        cone_dims = canon_maps.cone_dims
+        n_var = canon_maps.maps['c'][1].size
+        n_eq = cone_dims.zero
+        n_ineq = canon_maps.structures['G'].shape[0]
+        q = np.array(cone_dims.soc)
+        has_P = 'P' in canon_maps.structures
 
         canon_constants = {'n': n_var, 'm': n_ineq, 'p': n_eq,
-                           'l': p_prob.cone_dims.nonneg,
-                           'nsoc': len(p_prob.cone_dims.soc),
+                           'l': cone_dims.nonneg,
+                           'nsoc': len(cone_dims.soc),
                            'q': q}
 
         function_call = (
@@ -265,8 +268,7 @@ class QOCOInterface(SolverInterface):
             '   QOCOCscMatrix* A = (QOCOCscMatrix*)malloc(sizeof(QOCOCscMatrix));\n'
             '   QOCOCscMatrix* G = (QOCOCscMatrix*)malloc(sizeof(QOCOCscMatrix));\n'
         )
-        indices_obj, _, _ = self.get_problem_data_index(p_prob.reduced_P)
-        if indices_obj is not None:
+        if has_P:
             function_call += (
                 f'   qoco_set_csc(P, {canon_constants["n"]}, {canon_constants["n"]}, '
                 f'{{prefix}}Canon_Params.P->nnz, {{prefix}}Canon_Params.P->x, '
@@ -332,13 +334,13 @@ class QOCOInterface(SolverInterface):
                 function_call = 'update_vector_data({prefix}qoco_solver, NULL, NULL, {prefix}Canon_Params.h)'
             ),
         }
-        if indices_obj is not None:
+        if has_P:
             self.parameter_update_structure['P'] = ParameterUpdateLogic(
                 update_pending_logic = UpdatePendingLogic(['P']),
                 function_call = 'update_matrix_data({prefix}qoco_solver, {prefix}Canon_Params.P->x, NULL, NULL)'
             )
 
-        super().__init__(self.solver_name, n_var, n_eq, n_ineq, p_prob, canon_constants, enable_settings)
+        super().__init__(self.solver_name, n_var, n_eq, n_ineq, canon_constants, enable_settings)
 
     @staticmethod
     def check_unsupported_cones(cone_dims: "ConeDims") -> None:

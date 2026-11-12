@@ -384,7 +384,7 @@ class CCodeWriter:
         ], format='csc')
         
         K_true = sp.bmat([
-            [parameter_canon.p['P'], parameter_canon.p['A'].T],
+            [utils.symmetric_from_upper(parameter_canon.p['P']), parameter_canon.p['A'].T],
             [parameter_canon.p['A'], None]
         ], format='csr')
         

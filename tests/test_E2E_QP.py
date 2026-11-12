@@ -252,3 +252,56 @@ def test_OSQP_verbose():
 def test_clarabel():
     test('actuator', 'CLARABEL', 0)
     test('actuator', 'CLARABEL', 1)
+
+
+def dense_P_problem():
+
+    # A dense quadratic objective: the solver gets a dense P. OSQP, SCS,
+    # Clarabel and QOCO all expect only its upper triangle.
+    n = 4
+    W = np.random.default_rng(0).standard_normal((n, n))
+    x = cp.Variable(n, name='x')
+    q = cp.Parameter(n, name='q')
+    c = cp.Parameter(nonneg=True, name='c')
+    objective = cp.Minimize(cp.quad_form(x, W @ W.T + np.eye(n)) + q @ x)
+    constraints = [cp.sum(x) == c, x >= -1]
+    return cp.Problem(objective, constraints)
+
+
+def solve_dense_P(solver, identifier, n_solves):
+    """Generate code for dense_P_problem and compare n_solves solves with CVXPY."""
+    prob = dense_P_problem()
+    rng = np.random.default_rng(1)
+    prob.param_dict['q'].value = rng.standard_normal(4)
+    prob.param_dict['c'].value = 1.0
+
+    cpg.generate_code(prob, code_dir=identifier, prefix=identifier, solver=solver)
+    module = importlib.import_module(f'{identifier}.cpg_solver')
+    prob.register_solve('CPG', module.cpg_solve)
+
+    x = prob.var_dict['x']
+    settings = {'eps_abs': 1e-9, 'eps_rel': 1e-9} if solver == 'OSQP' else {}
+    for _ in range(n_solves):
+        val_ref = prob.solve(solver='CLARABEL')
+        x_ref = x.value
+        val_cg = prob.solve(method='CPG', **settings)
+        assert np.allclose(x.value, x_ref, atol=1e-4)
+        assert np.isclose(val_cg, val_ref, rtol=1e-4)
+        prob.param_dict['q'].value = rng.standard_normal(4)
+        prob.param_dict['c'].value = 2.0
+
+
+@pytest.mark.parametrize('solver', [
+    'OSQP', 'SCS', 'CLARABEL',
+    pytest.param('QOCO', marks=pytest.mark.xfail(
+        strict=True, reason='Re-solving with generated QOCO code ends in a numerical '
+                            'error, also for diagonal P; only the first solve is correct.')),
+])
+def test_dense_P(solver):
+    # The first solve fails if P is not upper triangular; later solves re-use
+    # the generated solver with new parameter values.
+    solve_dense_P(solver, f'test_dense_P_{solver}', n_solves=3)
+
+
+def test_dense_P_QOCO_first_solve():
+    solve_dense_P('QOCO', 'test_dense_P_QOCO_first', n_solves=1)

@@ -18,9 +18,7 @@ class SCSInterface(SolverInterface):
     solver_name = 'SCS'
     cvxpy_solver_name = 'SCS'
     solver_type = 'conic'
-    supports_quad_obj = True
     canon_p_ids = ['P', 'c', 'd', 'A', 'b']
-    canon_p_ids_constr_vec = ['b']
     parameter_update_structure = {
         'init': ParameterUpdateLogic(
             update_pending_logic = UpdatePendingLogic([], extra_condition = '!{prefix}Scs_Work', functions_if_false = ['PA']),
@@ -116,17 +114,17 @@ class SCSInterface(SolverInterface):
     # docu
     docu = 'https://www.cvxgrp.org/scs/api/c.html'
 
-    def __init__(self, data, p_prob, enable_settings):
-        n_var = p_prob.x.size
-        n_eq = data['A'].shape[0]
+    def __init__(self, canon_maps, enable_settings):
+        n_eq, n_var = canon_maps.structures['A'].shape
         n_ineq = 0
+        cone_dims = canon_maps.cone_dims
 
-        canon_constants = {'n': n_var, 'm': n_eq, 'z': p_prob.cone_dims.zero,
-                           'l': p_prob.cone_dims.nonneg,
-                           'q': np.array(p_prob.cone_dims.soc),
-                           'qsize': len(p_prob.cone_dims.soc)}
+        canon_constants = {'n': n_var, 'm': n_eq, 'z': cone_dims.zero,
+                           'l': cone_dims.nonneg,
+                           'q': np.array(cone_dims.soc),
+                           'qsize': len(cone_dims.soc)}
 
-        super().__init__(self.solver_name, n_var, n_eq, n_ineq, p_prob, canon_constants, enable_settings)
+        super().__init__(self.solver_name, n_var, n_eq, n_ineq, canon_constants, enable_settings)
 
     @staticmethod
     def check_unsupported_cones(cone_dims: "ConeDims") -> None:

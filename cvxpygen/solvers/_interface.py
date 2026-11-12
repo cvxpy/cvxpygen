@@ -8,8 +8,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from cvxpygen.mappings import PrimalVariableInfo, DualVariableInfo, ConstraintInfo, AffineMap, \
-    ParameterCanon
+from cvxpygen.mappings import PrimalVariableInfo, DualVariableInfo, ParameterCanon
 
 
 UNSUPPORTED_ON_WINDOWS = ['CLARABEL']
@@ -19,59 +18,26 @@ class QPCanonMixin:
     """
     Mixin for solvers that use the OSQP QP canonical form (P, q, d, A, l, u).
 
-    Provides the shared constructor, get_affine_map, and augment_vector_parameter
-    implementations for both OSQPInterface and PDAQPInterface.
+    Provides the shared constructor and augment_vector_parameter implementations
+    for both OSQPInterface and PDAQPInterface. Both take their inputs from
+    CVXPY's canonical maps for OSQP.
     """
 
     solver_type = 'quadratic'
     canon_p_ids = ['P', 'q', 'd', 'A', 'l', 'u']
-    canon_p_ids_constr_vec = ['l', 'u']
     dual_var_split = False
     dual_var_names = ['y']
 
-    def __init__(self, data, p_prob, enable_settings):
-        n_var = data['n_var']
-        n_eq = data['n_eq']
-        n_ineq = data['n_ineq']
+    def __init__(self, canon_maps, enable_settings):
+        n_var = canon_maps.maps['q'][1].size
+        n_eq = canon_maps.cone_dims.zero
+        n_ineq = canon_maps.cone_dims.nonneg
 
-        super().__init__(self.solver_name, n_var, n_eq, n_ineq, p_prob, {}, enable_settings)
+        super().__init__(self.solver_name, n_var, n_eq, n_ineq, {}, enable_settings)
 
-    def get_affine_map(self, p_id, param_prob, constraint_info: ConstraintInfo) -> AffineMap:
-        affine_map = AffineMap()
-
-        if p_id == 'P':
-            if self.indices_obj is None:  # problem is an LP
-                return None
-            affine_map.mapping = param_prob.reduced_P.reduced_mat
-            affine_map.indices = self.indices_obj
-            affine_map.shape = (self.n_var, self.n_var)
-        elif p_id == 'q':
-            affine_map.mapping = param_prob.q[:-1]
-        elif p_id == 'd':
-            affine_map.mapping = param_prob.q[[-1], :]
-        elif p_id == 'A':
-            affine_map.mapping = param_prob.reduced_A.reduced_mat[
-                                 :constraint_info.n_data_constr_mat]
-            affine_map.indices = self.indices_constr[:constraint_info.n_data_constr_mat]
-            affine_map.mapping[affine_map.indices >= self.n_eq] *= -1
-            affine_map.shape = (self.n_eq + self.n_ineq, self.n_var)
-        elif p_id == 'l':
-            mapping_rows_eq = np.nonzero(self.indices_constr < self.n_eq)[0]
-            affine_map.mapping_rows = mapping_rows_eq[
-                mapping_rows_eq >= constraint_info.n_data_constr_mat]
-            affine_map.sign = -1
-            affine_map.indices = self.indices_constr[affine_map.mapping_rows]
-            affine_map.shape = (self.n_eq, 1)
-        elif p_id == 'u':
-            affine_map.mapping_rows = np.arange(constraint_info.n_data_constr_mat,
-                                                constraint_info.n_data_constr)
-            affine_map.sign = np.vstack((-np.ones((self.n_eq, 1)), np.ones((self.n_ineq, 1))))
-            affine_map.indices = self.indices_constr[affine_map.mapping_rows]
-            affine_map.shape = (self.n_eq + self.n_ineq, 1)
-        else:
-            raise ValueError(f'Unknown QP parameter name {p_id}.')
-
-        return affine_map
+    def canonical_mapping_rows(self, p_id):
+        # l's inequality rows are the constant -inf; augment_vector_parameter restores them.
+        return slice(0, self.n_eq) if p_id == 'l' else slice(None)
 
     def augment_vector_parameter(self, p_id, vector_parameter):
         if p_id == 'l':
@@ -81,19 +47,15 @@ class QPCanonMixin:
 
 class SolverInterface(ABC):
 
-    supports_quad_obj: bool = False
-    cvxpy_solver_name: str = None  # CVXPY solver string used for get_problem_data
+    cvxpy_solver_name: str = None  # CVXPY solver whose canonical maps the interface uses
 
-    def __init__(self, solver_name, n_var, n_eq, n_ineq, p_prob, canon_constants, enable_settings):
+    def __init__(self, solver_name, n_var, n_eq, n_ineq, canon_constants, enable_settings):
         
         self.solver_name = solver_name
         self.n_var = n_var
         self.n_eq = n_eq
         self.n_ineq = n_ineq
         
-        self.indices_obj, self.indptr_obj, self.shape_obj = self.get_problem_data_index(p_prob.reduced_P)
-        self.indices_constr, self.indptr_constr, self.shape_constr = self.get_problem_data_index(p_prob.reduced_A)
-
         self.canon_constants = canon_constants
         self.enable_settings = enable_settings
 
@@ -102,11 +64,6 @@ class SolverInterface(ABC):
     @property
     @abstractmethod
     def canon_p_ids(self):
-        pass
-
-    @property
-    @abstractmethod
-    def canon_p_ids_constr_vec(self):
         pass
 
     @property
@@ -129,59 +86,13 @@ class SolverInterface(ABC):
         for s in set(self.enable_settings)-set(self.stgs):
             warnings.warn(f'Cannot enable setting {s} for solver {self.solver_name}')
 
-    def get_affine_map(self, p_id, param_prob, constraint_info: ConstraintInfo) -> AffineMap:
-        affine_map = AffineMap()
-
-        if p_id == 'P':
-            if self.indices_obj is None: # problem is an LP
-                return None
-            affine_map.mapping = param_prob.reduced_P.reduced_mat
-            affine_map.indices = self.indices_obj
-            affine_map.shape = (self.n_var, self.n_var)
-        elif p_id in ['q', 'c']:
-            affine_map.mapping = param_prob.q[:-1]
-        elif p_id == 'd':
-            affine_map.mapping = param_prob.q[[-1], :]
-        elif p_id == 'A':
-            affine_map.mapping_rows = constraint_info.mapping_rows_eq[
-                constraint_info.mapping_rows_eq < constraint_info.n_data_constr_mat]
-            affine_map.shape = (self.n_eq, self.n_var)
-        elif p_id == 'G':
-            affine_map.mapping_rows = constraint_info.mapping_rows_ineq[
-                constraint_info.mapping_rows_ineq < constraint_info.n_data_constr_mat]
-            affine_map.shape = (self.n_ineq, self.n_var)
-        elif p_id == 'b':
-            affine_map.mapping_rows = constraint_info.mapping_rows_eq[
-                constraint_info.mapping_rows_eq >= constraint_info.n_data_constr_mat]
-            affine_map.shape = (self.n_eq, 1)
-        elif p_id == 'h':
-            affine_map.mapping_rows = constraint_info.mapping_rows_ineq[
-                constraint_info.mapping_rows_ineq >= constraint_info.n_data_constr_mat]
-            affine_map.shape = (self.n_ineq, 1)
-        else:
-            raise ValueError(f'Unknown parameter name: {p_id}.')
-
-        if p_id in ['A', 'b']:
-            affine_map.indices = self.indices_constr[affine_map.mapping_rows]
-        elif p_id in ['G', 'h']:
-            affine_map.indices = self.indices_constr[affine_map.mapping_rows] - self.n_eq
-
-        if p_id in ['A', 'G']:
-            affine_map.mapping = param_prob.reduced_A.reduced_mat[affine_map.mapping_rows]
-            affine_map.sign = -1
-
-        return affine_map
-    
     def augment_vector_parameter(self, p_id, vector_parameter):
         return vector_parameter
-    
-    def get_problem_data_index(self, reduced_mat):
-        if reduced_mat.problem_data_index is None:
-            return None, None, None
-        else:
-            indices, indptr, shape = reduced_mat.problem_data_index
-            return indices, indptr, shape
 
+    def canonical_mapping_rows(self, p_id):
+        """Rows of the canonical map for p_id that are canonical parameter entries."""
+        return slice(None)
+    
     @property
     def stgs_names_enabled(self):
         return [n for n, s in self.stgs.items() if s.enabled]

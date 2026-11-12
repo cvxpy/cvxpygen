@@ -19,7 +19,6 @@ class ECOSInterface(SolverInterface):
     cvxpy_solver_name = 'ECOS'
     solver_type = 'conic'
     canon_p_ids = ['c', 'd', 'A', 'b', 'G', 'h']
-    canon_p_ids_constr_vec = ['b', 'h']
     solve_function_call = '{prefix}ecos_flag = ECOS_solve({prefix}ecos_workspace)'
 
     # header files
@@ -75,16 +74,17 @@ class ECOSInterface(SolverInterface):
     # docu
     docu = 'https://github.com/embotech/ecos/wiki/Usage-from-C'
 
-    def __init__(self, data, p_prob, enable_settings):
-        n_var = p_prob.x.size
-        n_eq = p_prob.cone_dims.zero
-        n_ineq = data['G'].shape[0]
+    def __init__(self, canon_maps, enable_settings):
+        cone_dims = canon_maps.cone_dims
+        n_var = canon_maps.maps['c'][1].size
+        n_eq = cone_dims.zero
+        n_ineq = canon_maps.structures['G'].shape[0]
 
         canon_constants = {'n': n_var, 'm': n_ineq, 'p': n_eq,
-                           'l': p_prob.cone_dims.nonneg,
-                           'n_cones': len(p_prob.cone_dims.soc),
-                           'q': np.array(p_prob.cone_dims.soc),
-                           'e': p_prob.cone_dims.exp}
+                           'l': cone_dims.nonneg,
+                           'n_cones': len(cone_dims.soc),
+                           'q': np.array(cone_dims.soc),
+                           'e': cone_dims.exp}
 
         self.parameter_update_structure = {
             'init': ParameterUpdateLogic(
@@ -117,7 +117,7 @@ class ECOSInterface(SolverInterface):
             )
         }
 
-        super().__init__(self.solver_name, n_var, n_eq, n_ineq, p_prob, canon_constants, enable_settings)
+        super().__init__(self.solver_name, n_var, n_eq, n_ineq, canon_constants, enable_settings)
 
     @staticmethod
     def check_unsupported_cones(cone_dims: "ConeDims") -> None:

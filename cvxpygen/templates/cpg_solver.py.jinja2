@@ -84,8 +84,8 @@ def cpg_solve(prob, updated_params=None, **kwargs):
 {% endfor %}
 
 {% if explicit != 1 %}
-{% for i, name, shape, reshape_str in dual_save_list %}
-    prob.constraints[{{ i }}].save_dual_value(np.array(res.cpg_dual.{{ name }}){{ reshape_str }})
+{% for i, j, name, index, shape in dual_save_list %}
+    prob.constraints[{{ i }}].dual_variables[{{ j }}].save_value(np.atleast_1d(res.cpg_dual.{{ name }}){{ index }}.reshape({{ shape }}, order='F'))
 {% endfor %}
 {% endif %}
 {% if explicit %}

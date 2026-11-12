@@ -19,9 +19,7 @@ class ClarabelInterface(SolverInterface):
     solver_name = 'Clarabel'
     cvxpy_solver_name = 'CLARABEL'
     solver_type = 'conic'
-    supports_quad_obj = True
     canon_p_ids = ['P', 'q', 'd', 'A', 'b']
-    canon_p_ids_constr_vec = ['b']
     gradient_supported = False
 
     # header and source files
@@ -125,25 +123,25 @@ class ClarabelInterface(SolverInterface):
     # docu
     docu = 'https://oxfordcontrol.github.io/ClarabelDocs/'
 
-    def __init__(self, data, p_prob, enable_settings):
-        n_var = p_prob.x.size
-        n_eq = data['A'].shape[0]
+    def __init__(self, canon_maps, enable_settings):
+        n_eq, n_var = canon_maps.structures['A'].shape
         n_ineq = 0
+        cone_dims = canon_maps.cone_dims
 
         canon_constants = {'n': n_var, 'm': n_eq,
-                           'cone_dims_zero': p_prob.cone_dims.zero,
-                           'cone_dims_nonneg': p_prob.cone_dims.nonneg,
-                           'cone_dims_exp': p_prob.cone_dims.exp,
-                           'cone_dims_soc': np.array(p_prob.cone_dims.soc),
-                           'cone_dims_psd': np.array(p_prob.cone_dims.psd),
-                           'cone_dims_p3d': np.array(p_prob.cone_dims.p3d)}
+                           'cone_dims_zero': cone_dims.zero,
+                           'cone_dims_nonneg': cone_dims.nonneg,
+                           'cone_dims_exp': cone_dims.exp,
+                           'cone_dims_soc': np.array(cone_dims.soc),
+                           'cone_dims_psd': np.array(cone_dims.psd),
+                           'cone_dims_p3d': np.array(cone_dims.p3d)}
         
-        canon_constants['n_cone_types'] = int(p_prob.cone_dims.zero > 0) + \
-            int(p_prob.cone_dims.nonneg > 0) + \
-            int(p_prob.cone_dims.exp > 0) + \
-            len(p_prob.cone_dims.soc) + \
-            len(p_prob.cone_dims.psd) + \
-            len(p_prob.cone_dims.p3d)
+        canon_constants['n_cone_types'] = int(cone_dims.zero > 0) + \
+            int(cone_dims.nonneg > 0) + \
+            int(cone_dims.exp > 0) + \
+            len(cone_dims.soc) + \
+            len(cone_dims.psd) + \
+            len(cone_dims.p3d)
         
         canon_constants['cd_to_t'] = {
             'cone_dims_zero': 'ClarabelZeroConeT',
@@ -155,8 +153,8 @@ class ClarabelInterface(SolverInterface):
         }
 
         # catch LP case (hack, until Clarabel permits passing a zero pointer as &P)
-        indices_obj, _, _ = self.get_problem_data_index(p_prob.reduced_P)
-        if indices_obj is None:
+        is_lp = canon_maps.structures['P'].indices.size == 0
+        if is_lp:
             extra_condition = '1'
             P_p = f'(cpg_int[]){{{{ {", ".join(["0"]*(n_var+1))} }}}}'
             P_i = '0'
@@ -192,7 +190,7 @@ class ClarabelInterface(SolverInterface):
             ),
         }
         
-        if indices_obj is not None:
+        if not is_lp:
             self.parameter_update_structure['P'] = ParameterUpdateLogic(
                 update_pending_logic = UpdatePendingLogic(['P']),
                 function_call = f'{{prefix}}cpg_copy_P();\n      clarabel_CscMatrix_init(&{{prefix}}P, {canon_constants["n"]}, {canon_constants["n"]}, {P_p}, {P_i}, {P_x})'
@@ -203,7 +201,7 @@ class ClarabelInterface(SolverInterface):
             f'  clarabel_DefaultSolver_solve({{prefix}}solver);\n' \
             f'  {{prefix}}solution = clarabel_DefaultSolver_solution({{prefix}}solver)'
 
-        super().__init__(self.solver_name, n_var, n_eq, n_ineq, p_prob, canon_constants, enable_settings)
+        super().__init__(self.solver_name, n_var, n_eq, n_ineq, canon_constants, enable_settings)
 
     @staticmethod
     def ret_prim_func_exists(variable_info: PrimalVariableInfo) -> bool:

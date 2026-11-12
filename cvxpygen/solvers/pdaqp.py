@@ -67,8 +67,8 @@ class PDAQPInterface(QPCanonMixin, SolverInterface):
 
     docu = 'https://github.com/darnstrom/pdaqp'
 
-    def __init__(self, data, p_prob, enable_settings):
-        super().__init__(data, p_prob, enable_settings)
+    def __init__(self, canon_maps, enable_settings):
+        super().__init__(canon_maps, enable_settings)
         # Set by Canonicalizer._extract() after construction
         self._problem = None
         self._solver_opts = None
@@ -89,7 +89,7 @@ class PDAQPInterface(QPCanonMixin, SolverInterface):
         A = canon.parameter_canon.p['A'].toarray()
         m, n = A.shape
 
-        H = canon.parameter_canon.p['P'].toarray() + 1e-6 * np.eye(n)
+        H = utils.symmetric_from_upper(canon.parameter_canon.p['P']).toarray() + 1e-6 * np.eye(n)
 
         f = np.zeros_like(canon.parameter_canon.p['q'])
         F = np.hstack([np.eye(n), np.zeros((n, m))])
@@ -295,12 +295,11 @@ class PDAQPInterface(QPCanonMixin, SolverInterface):
                     raise ValueError('Explicit mode: Parameter constraints must be simple bounds!')
 
                 # remove dual variables corresponding to parameter constraints
-                canon.dual_variable_info.name_to_init.pop(f'd{i}')
-                canon.dual_variable_info.name_to_vec.pop(f'd{i}')
-                canon.dual_variable_info.name_to_offset.pop(f'd{i}')
-                canon.dual_variable_info.name_to_indices.pop(f'd{i}')
-                canon.dual_variable_info.name_to_size.pop(f'd{i}')
-                canon.dual_variable_info.name_to_shape.pop(f'd{i}')
+                dvi = canon.dual_variable_info
+                for fields in (dvi.name_to_init, dvi.name_to_vec, dvi.name_to_offset,
+                               dvi.name_to_indices, dvi.name_to_size, dvi.name_to_shape,
+                               dvi.name_to_parts):
+                    fields.pop(f'd{i}', None)
 
         # map to Delta (q, u)
         id_to_mapping = parameter_canon.p_id_to_mapping
